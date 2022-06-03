@@ -53,7 +53,7 @@ d12d1logcpiacf <- acf2(d12d1logcpi,  max.lag = 150) # 沒有明顯趨勢，不須再做差分
 adf.test(d12d1logcpi) # stationary
 
 
-## 方法二、去除趨勢前處理: 先去除CPI增長的趨勢，使用時間t作為迴歸變數，得到的fitted values計算殘差，觀察殘差時間序列圖，再取適當的差分。
+## 方法二、以時間t作為變數之迴歸處理: 先去除CPI增長的趨勢，使用時間t作為迴歸變數，得到的fitted values計算殘差，觀察殘差時間序列圖，再取適當的差分。
 t <- 1:312
 reg1 <- lm(logcpi ~ 1 + t, data = corecpi_train)
 res1 <- reg1$residuals
@@ -73,7 +73,7 @@ adf.test(d12d1res1) # stationary
 ### 我們發現 d12d1res1 和 d12d1logcpi 的 acf, pacf 相同，但因為是從不同方式得到的序列，且後續計算PMSE的方式也相異，因此雖然配適模型order選取相同，仍視為兩種情形。
 
 
-## 方法三、迴歸前處理: 使用 IPI 和 UE 作為迴歸變數，觀察得到殘差的時間序列圖，再取適當的差分。
+## 方法三、多變量迴歸處理: 使用 IPI 和 UE 作為迴歸變數，觀察得到殘差的時間序列圖，再取適當的差分。
 ### 次要變數一: 工業生產指數 industry production index
 ipi <- read_csv("IPI_1990-2017.csv", show_col_types = F)
 ## train and test set
@@ -507,12 +507,13 @@ result
 #### 將實際值(observed_data)、配適值(fitted values)、方差(square_error)、預測區間(prediction interval) 以表格呈現。
 #### prediction intervals
 #### 實際值都有在prediction interval內。
-data.frame("observed_data" = corecpi_test$logcpi, 
+df <- data.frame("observed_data" = corecpi_test$logcpi, 
            "fitted_value" = fittedreg1,
            "square_error" = round(errorsq_fit42,6),
            "95%_lower_bound" = lbd_fit42,
            "95%_upper_bound" = ubd_fit42
            )
+df
 
 ### 2. 
 #### 透過計算前後期的差距，可以發現在2016年與2017年底，都有負向的變化量，主要原因是美國聯準會在2015(0.25% –> 0.50%)和2016(0.50% –> 0.75%)年底都有宣布升息。
@@ -524,6 +525,9 @@ for(i in 2:24){
 diff
 
 ## 附錄
+# 程式碼與輸出結果:
+# https://chang-web.github.io/Time-Series-Analysis/0609_time-series-final-report.html
+
 # 資料來源:
 # https://fred.stlouisfed.org/series/CPILFENS
 # https://fred.stlouisfed.org/series/UNRATENSA
