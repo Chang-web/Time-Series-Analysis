@@ -190,8 +190,15 @@ res2acf2 <- acf2(res2, max.lag = 150)
 ### seasonal part: acf tails off; pacf cut off at lag = 1 => seasonal AR(1)
 ### nonseasonal part: acf and pacf tail off => ARMA(1,1)
 ### 因為沒有在 0 附近震盪，所以估計常數項
-fit60 <- stats::arima(res2, order=c(1,0,1), seasonal=list(order=c(0,0,1), period=12), method = "CSS-ML")
-fit60 # 係數都有顯著
+fit60 <- stats::arima(res2, order=c(1,0,1), seasonal=list(order=c(1,0,0), period=12), method = "CSS-ML")
+fit60  # ma 係數不顯著
+fit61 <- stats::arima(res2, order=c(1,0,0), seasonal=list(order=c(1,0,0), period=12), method = "CSS-ML")
+fit61 # 係數都有顯著
+### 老師建議:直接配AR(4)+Seasonal order
+### seasonal part: acf tails off; pacf cut off at lag = 1 => seasonal AR(1)
+### nonseasonal part: acf tail off; pacf cut off at lag = 5 => AR(5)
+fit62 <- stats::arima(res2, order=c(5,0,0), seasonal=list(order=c(1,0,0), period=12), method = "CSS-ML")
+fit62 # ar 係數不顯著，刪減後為 fit61
 
 ## 方法三b.之時間數列圖在 0 附近震盪，所以配適模型不考慮估計常數項
 ### b.
@@ -213,7 +220,7 @@ fit80 # 係數都有顯著
 fit81 <- stats::arima(res2, order=c(1,1,0), seasonal=list(order=c(2,1,0), period=12), method = "CSS-ML")
 fit81 # 係數都有顯著
 
-# 分別列出四種序列下的候選模型，以AIC為標準，在三種方法下各自選出最佳模型: fit12; fit22; fit51
+# 分別列出四種序列下的候選模型，以AIC為標準，在三種方法下各自選出最佳模型: fit12; fit42; fit71
 ## 方法一: fit12
 ### a.
 fit00$aic # -3373.177
@@ -233,7 +240,7 @@ fit42$aic # -3285.47
 
 ## 方法三: fit71
 ### a.
-fit60$aic # -1655.65
+fit61$aic # -1930.805
 ### b.
 fit70$aic # -1951.541
 fit71$aic # -1952.119
@@ -309,6 +316,7 @@ for(hh in 1:100){
 plot(1:100, B_text_p_value[1:100], type="p", 
      main="p values for Ljung-Box statistic (fit71)", 
      xlab="lag", ylab="p value", ylim=c(0,1));abline(h=0.05, lty=2, col=4) 
+### 老師建議:殘差檢定結果已經很好，不須再修正模型
 
 ### 修正模型: 
 #### 觀察 fit71 標準化殘差的acf & pacf
@@ -316,6 +324,7 @@ plot(1:100, B_text_p_value[1:100], type="p",
 mfit71 <- stats::arima(res2, order=c(2,1,1), seasonal=list(order=c(0,1,1), period=12), method = "CSS-ML")
 mfit71 # 係數都有顯著
 mfit71$aic # -1951.004 AIC 有稍微大一些
+#### 老師建議:可以AR(1)或MA(1) => 係數有不顯著，效果沒有 ARMA(1,1) 好
 
 ### mfit71 有通過殘差檢定
 stdresmfit71 <- rstandard(mfit71)  
@@ -332,7 +341,7 @@ plot(1:100, B_text_p_value[1:100], type="p",
 ## check
 sarima(res2, 2,1,1,0,1,1,12) 
 
-## 最後在三種方式有通過殘差檢定的模型分別為: mfit121, fit42, mfit71
+## 最後在三種方式有通過殘差檢定的模型分別為: mfit121, fit42, fit71, mfit71
 
 
 # 預測
@@ -340,30 +349,32 @@ library(forecast)
 ## 24-steps ahead predictions and confidence intervals
 forcastm121 <- forecast(mfit121, level=c(95), h=2*12)
 forcast42 <- forecast(fit42, level=c(95), h=2*12)
+forcast71 <- forecast(fit71, level=c(95), h=2*12)
 forcastm71 <- forecast(mfit71, level=c(95), h=2*12)
 forcastm121
 forcast42
+forcast71
 forcastm71
 
 ## 視覺化呈現預測結果
 ## Fan charts
-plot(forcastm121, main = "Froecasts from SARIMA(1,1,1)*(3,0,0)[12]")
+plot(forcastm121, main = "Forecasts from SARIMA(1,1,1)*(3,0,0)[12]")
 
 tscorelogcpi <- ts(corelogcpi$logcpi, start=c(1990,1),end=c(2017,12),frequency=12)
 plot(tscorelogcpi, xlab="year", ylab="logcpi index", 
-     main = "Froecasts from SARIMA(1,1,1)*(3,0,0)[12]", 
-     lwd = 2, lty = 1, ylim = c(4.85, 5.7))
-lines(forcastm121$mean, type = "l", col = "green", lwd = 2)
-lines(forcastm121$lower, col = "blue", lwd = 2, lty = 1)
-lines(forcastm121$upper, col = "red", lwd = 2, lty = 1)
+     main = "Forecasts from SARIMA(1,1,1)*(3,0,0)[12]", 
+     lwd = 1, lty = 1, ylim = c(4.85, 5.7), col = "black")
+lines(forcastm121$mean, type = "l", col = "blue", lwd = 2)
+lines(forcastm121$lower, col = "orange", lwd = 2, lty = 1)
+lines(forcastm121$upper, col = "orange", lwd = 2, lty = 1)
 legend("topleft", 
-       c("upperbound", "prediction", "lowerbound", "core_cpi% in dataset"),
-       lty = 1, lwd = 2, 
-       col = c("red", "green", "blue", "black"))
+       c("95% prediction interval", "prediction", "core_cpi% in dataset"),
+       lty = 1, lwd = c(2,2,1), 
+       col = c("orange", "blue", "black"))
 
 
 ### fan chart of residuals
-plot(forcast42, main = "Froecast of residuals from SARIMA(1,1,1)*(0,1,1)[12]")
+plot(forcast42, main = "Forecasts of residuals from SARIMA(1,1,1)*(0,1,1)[12]")
 ### 從迴歸我們有係數的估計值，將這些係數和所對應測試集的解釋變數相乘並加總，再將這些數值加上預測殘差，結果為測試集的配適值(fitted value)。
 beta0_hat <- reg1$coefficients[[1]]
 beta1_hat <- reg1$coefficients[[2]]
@@ -376,74 +387,97 @@ fittedreg1 <- ts(fittedreg1, start = c(2016,1), end = c(2017,12), frequency = 12
 lbd_fit42 <- ts(lbd_fit42, start = c(2016,1), end = c(2017,12), frequency = 12)
 ubd_fit42 <- ts(ubd_fit42, start = c(2016,1), end = c(2017,12), frequency = 12)
 plot(tscorelogcpi, xlab="year", ylab="logcpi index", 
-     main = "Froecasts from SARIMA(1,1,1)*(0,1,1)[12]", 
-     lwd = 2, lty = 1, ylim = c(4.85, 5.7))
-lines(fittedreg1, type = "l", col = "green", lwd = 2)
-lines(lbd_fit42, col = "blue", lwd = 2, lty = 1)
-lines(ubd_fit42, col = "red", lwd = 2, lty = 1)
+     main = "Forecasts from SARIMA(1,1,1)*(0,1,1)[12]", 
+     lwd = 1, lty = 1, ylim = c(4.85, 5.7))
+lines(fittedreg1, type = "l", col = "blue", lwd = 2)
+lines(lbd_fit42, col = "orange", lwd = 2, lty = 1)
+lines(ubd_fit42, col = "orange", lwd = 2, lty = 1)
 legend("topleft", 
-       c("upperbound", "prediction", "lowerbound", "core_cpi%  in dataset"),
-       lty = 1, lwd = 2, 
-       col = c("red", "green", "blue", "black"))
+       c("95% prediction interval", "prediction", "core_cpi% in dataset"),
+       lty = 1, lwd = c(2,2,1), 
+       col = c("orange", "blue", "black"))
 
 
 ### fan chart of residuals
-plot(forcastm71, main = "Froecast of residuals from SARIMA(2,1,1)*(0,1,1)[12]")
+plot(forcast71, main = "Forecasts of residuals from SARIMA(1,1,0)*(0,1,1)[12]")
+plot(forcastm71, main = "Forecasts of residuals from SARIMA(2,1,1)*(0,1,1)[12]")
 
 beta0_hat <- reg2$coefficients[[1]]
 beta1_hat <- reg2$coefficients[[2]]
 beta2_hat <- reg2$coefficients[[3]]
 ipi_test <- ipi[313:336, 2]
 ue_test <- ue[313:336, 2]
-prederror2 <- forcastm71$mean
-fittedreg2 <- c() 
-lbd_fitm71 <- c()
-ubd_fitm71 <- c()
+prederror2_fit71 <- forcast71$mean
+prederror2_fitm71 <- forcastm71$mean
+fittedreg2_fit71 <- c() 
+fittedreg2_mfit71 <- c()
+lbd_fit71 <- c()
+ubd_fit71 <- c()
+lbd_mfit71 <- c()
+ubd_mfit71 <- c()
 for(i in 1:24){
   
-  fittedreg2[i] <- beta0_hat + beta1_hat * ipi_test$IPB50001N[i] + beta2_hat * ue_test$UNRATENSA[i] + prederror2[i]
-  lbd_fitm71[i] <- beta0_hat + beta1_hat * ipi_test$IPB50001N[i] + beta2_hat * ue_test$UNRATENSA[i] + forcastm71$lower[i]
-  ubd_fitm71[i] <- beta0_hat + beta1_hat * ipi_test$IPB50001N[i] + beta2_hat * ue_test$UNRATENSA[i] + forcastm71$upper[i]
-  
-}
-fittedreg2 <- ts(fittedreg2, start = c(2016,1), end = c(2017,12), frequency = 12)
-lbd_fitm71 <- ts(lbd_fitm71, start = c(2016,1), end = c(2017,12), frequency = 12)
-ubd_fitm71 <- ts(ubd_fitm71, start = c(2016,1), end = c(2017,12), frequency = 12)
-plot(tscorelogcpi, xlab="year", ylab="logcpi index", 
-     main = "Froecasts from SARIMA(2,1,1)*(0,1,1)[12]",
-     lwd = 2, lty = 1, ylim = c(4.85, 5.7))
-lines(fittedreg2, type = "l", col = "green", lwd = 2)
-lines(lbd_fitm71, col = "blue", lwd = 2, lty = 1)
-lines(ubd_fitm71, col = "red", lwd = 2, lty = 1)
-legend("topleft", 
-       c("upperbound", "prediction", "lowerbound", "core_cpi% in dataset"),
-       lty = 1, lwd = 2, 
-       col = c("red", "green", "blue", "black"))
+  fittedreg2_fit71[i] <- beta0_hat + beta1_hat * ipi_test$IPB50001N[i] + beta2_hat * ue_test$UNRATENSA[i] + prederror2_fit71[i]
+  fittedreg2_mfit71[i] <- beta0_hat + beta1_hat * ipi_test$IPB50001N[i] + beta2_hat * ue_test$UNRATENSA[i] + prederror2_fitm71[i]
+  lbd_fit71[i] <- beta0_hat + beta1_hat * ipi_test$IPB50001N[i] + beta2_hat * ue_test$UNRATENSA[i] + forcast71$lower[i]
+  ubd_fit71[i] <- beta0_hat + beta1_hat * ipi_test$IPB50001N[i] + beta2_hat * ue_test$UNRATENSA[i] + forcast71$upper[i]
+  lbd_mfit71[i] <- beta0_hat + beta1_hat * ipi_test$IPB50001N[i] + beta2_hat * ue_test$UNRATENSA[i] + forcastm71$lower[i]
+  ubd_mfit71[i] <- beta0_hat + beta1_hat * ipi_test$IPB50001N[i] + beta2_hat * ue_test$UNRATENSA[i] + forcastm71$upper[i]
 
+}
+fittedreg2_fit71 <- ts(fittedreg2_fit71, start = c(2016,1), end = c(2017,12), frequency = 12)
+fittedreg2_mfit71 <- ts(fittedreg2_mfit71, start = c(2016,1), end = c(2017,12), frequency = 12)
+lbd_fit71 <- ts(lbd_fit71, start = c(2016,1), end = c(2017,12), frequency = 12)
+ubd_fit71 <- ts(ubd_fit71, start = c(2016,1), end = c(2017,12), frequency = 12)
+lbd_mfit71 <- ts(lbd_mfit71, start = c(2016,1), end = c(2017,12), frequency = 12)
+ubd_mfit71 <- ts(ubd_mfit71, start = c(2016,1), end = c(2017,12), frequency = 12)
+
+plot(tscorelogcpi, xlab="year", ylab="logcpi index", 
+     main = "Forecasts from SARIMA(1,1,0)*(0,1,1)[12]",
+     lwd = 1, lty = 1, ylim = c(4.85, 5.7))
+lines(fittedreg2_fit71, type = "l", col = "blue", lwd = 2)
+lines(lbd_fit71, col = "orange", lwd = 2, lty = 1)
+lines(ubd_fit71, col = "orange", lwd = 2, lty = 1)
+legend("topleft", 
+       c("95% prediction interval", "prediction", "core_cpi% in dataset"),
+       lty = 1, lwd = c(2,2,1), 
+       col = c("orange", "blue", "black"))
+
+plot(tscorelogcpi, xlab="year", ylab="logcpi index", 
+     main = "Forecasts from SARIMA(2,1,1)*(0,1,1)[12]",
+     lwd = 1, lty = 1, ylim = c(4.85, 5.7))
+lines(fittedreg2_mfit71, type = "l", col = "blue", lwd = 2)
+lines(lbd_mfit71, col = "orange", lwd = 2, lty = 1)
+lines(ubd_mfit71, col = "orange", lwd = 2, lty = 1)
+legend("topleft", 
+       c("95% prediction interval", "prediction", "core_cpi% in dataset"),
+       lty = 1, lwd = c(2,2,1), 
+       col = c("orange", "blue", "black"))
 
 ## 觀察測試集的部分
-#### 由下圖， fit42(SARIMA(1,1,1)*(0,1,1)[12]) 折線與實際值折線最為接近，mfit70(SARIMA(2,1,1)*(0,1,1)[12]) 的預測情形最不理想。
+#### 由下圖， 策略一、二的模型，其預測與實際值折現均很接近，mfit71(SARIMA(2,1,1)*(0,1,1)[12]) 的預測情形最不理想。
+#### 從方法三模型修正結果，如果在殘差檢定追求完全不顯著的lag，可能會導致預測更不精確。(方法三後續僅討論 fit71 預測情形)
 #### 另外，可以觀察到在前15期，fit42的預測較為準確，然而在20期後，反而是 mfit121(SARIMA(1,1,1)*(3,0,0)[12]) 較接近實際值。
-#### 從圖可看出 fit42, fitm71 的預測結果，都在年底(第12期和24期)有下降的現象，此結果和測試集的實際值一致。
+#### 從圖可看出 mfit121, fit42 的預測結果，都在年底(第12期和24期)有下降的現象，此結果和測試集的實際值一致。
 plot(forcastm121$mean,
      ylim = c(5.495, 5.56), xlim = c(2016, 2018), xaxt="n",
      type = "l", col = "darkorange", lwd = 2, xlab = "",
      main = "Forcasts from models and observed data in 2016-2017", ylab = "core_cpi%")
 axis(1, at=seq(2016, 2018, by=0.5), labels = c("2016 Jan", "2016 June", "2017 Jan", "2017 June", "2018 Jan"))
 lines(fittedreg1, type = "l", col = "green", lwd = 2)
-lines(fittedreg2, type = "l", col = "blue", lwd = 2)
+lines(fittedreg2_fit71, type = "l", col = "purple", lwd = 2)
+lines(fittedreg2_mfit71, type = "l", col = "blue", lwd = 2)
 observed <- ts(corecpi_test$logcpi, start = c(2016,1), end = c(2017,12), frequency = 12)
 lines(observed,type = "l", col = "black", lwd = 2)
 points(forcastm121$mean, col = "darkorange", pch = 16)
 points(fittedreg1, col = "green", pch = 16)
-points(fittedreg2, col = "blue", pch = 16)
+points(fittedreg2_fit71, col = "purple", pch = 16)
+points(fittedreg2_mfit71, col = "blue", pch = 16)
 points(observed, col = "black", pch = 16)
-legend("topleft", 
-       c("SARIMA(1,1,1)*(3,0,0)[12]", "SARIMA(1,1,1)*(0,1,1)[12]", "SARIMA(2,1,1)*(0,1,1)[12]", "core_cpi% in test set"),
+legend("bottomright", 
+       c("SARIMA(1,1,1)*(3,0,0)[12]", "SARIMA(1,1,1)*(0,1,1)[12]", "SARIMA(1,1,0)*(0,1,1)[12]","SARIMA(2,1,1)*(0,1,1)[12]", "core_cpi% in test set"),
        lty = 1, lwd = 2,pch = 16, 
-       col = c("darkorange", "green", "blue", "black"))
-
-
+       col = c("darkorange", "green","purple", "blue", "black"))
 
 
 ## 透過比較PMSE大小選出最佳模型
@@ -473,29 +507,29 @@ for(i in 1:24){
 }
 
 #### 方法三
-error_mfit71 <- c()
-errorsq_mfit71 <- c()
+error_fit71 <- c()
+errorsq_fit71 <- c()
 for(i in 1:24){
   
-  error_mfit71[i] <- corecpi_test[i,2] - fittedreg2[i]
-  errorsq_mfit71[i] <- error_mfit71[i]^2
-  PMSE_mfit71 <- mean(errorsq_mfit71)
+  error_fit71[i] <- corecpi_test[i,2] - fittedreg2_fit71[i]
+  errorsq_fit71[i] <- error_fit71[i]^2
+  PMSE_fit71 <- mean(errorsq_fit71)
   
 }
 
 ## 以表格呈現
-result <- round(data.frame(errorsq_mfit121, errorsq_fit42, errorsq_mfit71), 6)
+result <- round(data.frame(errorsq_mfit121, errorsq_fit42, errorsq_fit71), 6)
 k <- c()
 for(i in 1:24){
   k[i] <- paste(i,"-step")
 }
 rownames(result) <- k
-colnames(result) <- c("mfit121", "fit42", "mfit71")
+colnames(result) <- c("mfit121", "fit42", "fit71")
 
-## fit42 有最小的 PMSE，其次是 mfit121，最後則是 mfit71。
+## fit42 有最小的 PMSE，其次是 mfit121，最後則是 fit71。
 ## 因此 fit42(以時間t為解釋變數的迴歸之配飾模型) 有較良好的預測品質，以此模型作為本次報告通過殘差檢定的最佳配適模型。
 ## PMSE
-PMSE <- round(c(PMSE_mfit121, PMSE_fit42, PMSE_mfit71), 6)
+PMSE <- round(c(PMSE_mfit121, PMSE_fit42, PMSE_fit71), 6)
 result <- data.frame(rbind(result, PMSE))
 rownames(result)[25] <- "PMSE"
 result
@@ -517,16 +551,21 @@ df
 
 ### 2. 
 #### 透過計算前後期的差距，可以發現在2016年與2017年底，都有負向的變化量，主要原因是美國聯準會在2015(0.25% –> 0.50%)和2016(0.50% –> 0.75%)年底都有宣布升息。
-#### 因此選定的最佳配適模型(fit42)有確實反映出升息政策實施後，核心通膨率在未來下降的現象，表示升息政策有抑制通膨的效果，符合本次報告的預期結果。
+#### 因此選定的最佳配適模型(fit42)有反映出升息政策實施後，核心通膨率在未來下降的現象，表示升息政策在此資料可能反應部分抑制通膨的效果，符合本次報告的預期結果。
 diff <- c()
 for(i in 2:24){
   diff[i] <- round(fittedreg1[i] - fittedreg1[i-1], 6)
 }
 diff
 
+### 3. 可改進的方向
+#### 方法二用時間變數消除趨勢，此變數可以解釋資料近99%的變異。
+#### 方法二用時間變數消除趨勢，調整後判定係數 (adjusted R squared) 顯示此變數可以解釋資料近99%的變異。方法三，我們改以工業生產指數和失業率作為控制變數消除趨勢，效果是最差的，表示對於此資料，控制其他解釋變數的結果並沒有優於時間變數，調整後判定係數為95%，確實略低於方法二99%的結果。
+#### 在後續研究類似議題，仍可以嘗試多變量迴歸的方式，惟須注意所選取控制變數的重要性。
+
 ## 附錄
 # 程式碼與輸出結果:
-# https://chang-web.github.io/Time-Series-Analysis/0609_time-series-final-report.html
+# https://chang-web.github.io/Time-Series-Analysis/Time-Series-Final-Report.html
 
 # 資料來源:
 # https://fred.stlouisfed.org/series/CPILFENS
